@@ -1,0 +1,177 @@
+//Imported libraries
+import java.util.*;
+import com.anylogic.engine.*;
+import pandas as pd;
+import numpy as np;
+import osmnx as ox;
+import networkx as nx;
+import matplotlib.pyplot as plt;
+import org.apache.commons.math3.ml.regression.SimpleRegression;
+
+// Defines the properties for the agent
+List<String> schedule = new ArrayList<>(); // This would be the list of locations
+Map<String, Point> mappedLocation = new HashMap<>(); // Mapping
+int currentTaskIndex = 0; // Current task in the schedule
+boolean atStopSignOrLight = false; //tracks if the agent has stopped
+Random random = new Random(); // Random instances for the simulated behaviors
+
+Map<String, Double> routeProbabilities = new HashMap<>(); //Gives the probabilities for the traffic routes
+List<Double> distances = new ArrayList<>();
+List<Double> times = new ArrayList<>();
+List<Double> predictedDistance = new ArrayList<>();
+List<Double> predictedTime = new ArrayList<>();
+SimpleRegression distanceRegressor = new SimpleRegression();
+SimpleRegression timeRegressor = new SimpleRegression();
+
+// Agent Initialization
+public void initializeAgent() {
+    //Since we are not using openmapgs we are only using points due to not having to specify addresses
+    mappedLocation.put("LocationA", new Point(10, 20));
+    mappedLocation.put("LocationB", new Point(50, 80));
+    mappedLocation.put("LocationC", new Point(100, 150));
+    mappedLocation.put("LocationD", new Point(120, 40));
+    mapppedLocation.put("LocationE", new Point(30, 70));
+    mappedLocation.put("LocationF", new Point(200, 250));
+    mappedLocation.put("LocationG", new Point(300, 100));
+
+    schedule.add("LocationA");
+    schedule.add("LocationB");
+    schedule.add("LocationC");
+    schedule.add("LocationD");
+    schedule.add("LocationE");
+    schedule.add("LocationF");
+    schedule.add("LocationG");
+
+    // Defines the route probabilities
+    routeProbabilities.put("LocationA", 0.25); // 25% chance for LocationA
+    routeProbabilities.put("LocationB", 0.20); // 20% chance for LocationB
+    routeProbabilities.put("LocationC", 0.15); // 15% chance for LocationC
+    routeProbabilities.put("LocationD", 0.10); // 10% chance for LocationD
+    routeProbabilities.put("LocationE", 0.10); // 10% chance for LocationE
+    routeProbabilities.put("LocationF", 0.10); // 10% chance for LocationF
+    routeProbabilities.put("LocationG", 0.10); // 10% chance for LocationG
+
+    initializeRegressors();
+}
+
+// Schedules and moves the agent to their next locations
+public void moveToNextLocation() {
+    if (currentTaskIndex < schedule.size()) {
+        String nextLocation = schedule.get(currentTaskIndex);
+        Point destination = locationMap.get(nextLocation);
+
+        if (destination != null) {
+            moveTo(destination);
+        }
+    } else {
+        log("All tasks completed.");
+    }
+}
+
+// Gives an action to perform when going to its location
+@Override
+public void reachDestination() {
+    String currentLocation = schedule.get(currentTaskIndex);
+    log("Reached " + currentLocation);
+
+    Point currentPoint = locationMap.get(currentLocation);
+    Point previousPoint = currentTaskIndex > 0 ? locationMap.get(schedule.get(currentTaskIndex - 1)) : null;
+
+    if (previousPoint != null) {
+        double distance = calculateEuclideanDistance(previousPoint, currentPoint);
+        double time = distance / 50.0; // Example: Assume constant speed of 50 units/hour
+
+        distances.add(distance);
+        times.add(time);
+
+        double predictedDistance = distanceRegressor.predict(distance);
+        double predictedTime = timeRegressor.predict(time);
+
+        predictedDistances.add(predictedDistance);
+        predictedTimes.add(predictedTime);
+
+        log(String.format("Predicted Distance: %.2f, Predicted Time: %.2f", predictedDistance, predictedTime));
+    }
+
+    currentTask++;
+
+    // Schedule the next movement (if there are more tasks)
+    if (currentTask < schedule.size()) {
+        moveToNextLocation();
+    } else {
+        log("No more tasks to process.");
+    }
+}
+
+//Startup Initialization
+@Startup
+public void startupInitialization() {
+    initializeAgent();
+    spawnVehiclesBasedOnRouteProbabilities();
+    moveToNextLocation();
+}
+
+// Moves the agent to its destination
+public void moveTo(Point destination) {
+    if (atTrafficLightOrStopSign()) {
+        double durationStops = random.nextDouble() * 5 + 2;
+        hold(durationStops);
+    }
+    moveTo(destination.getX(), destination.getY());
+}
+
+// Checks for a traffic light or stop sign
+public boolean atTrafficLightOrStopSign() {
+    stopSignOrLight = random.nextBoolean(); //Simulates traffic stops at random
+    if (StopSignOrLight) {
+        log("Stopped at a stop sign or traffic light.");
+    }
+    return StopSignOrLight;
+}
+
+// Spawns vehicles based on any route probabilities
+public void spawnVehiclesBasedOnRouteProbabilities() {
+    for (Map.Entry<String, Double> entry : routeProbabilities.entrySet()) {
+        String location = entry.getKey();
+        double probability = entry.getValue();
+
+        if (random.nextDouble() < probability) {
+            log("Spawning vehicle at " + location);
+        }
+    }
+}
+
+// Initializes the regressorsfor training
+public void initializeRegressors() {
+    for (int i = 1; i <= 10; i++) {
+        double exampleDistance = i * 10.0;
+        double exampleTime = exampleDistance / 50.0;
+
+        distanceRegressor.addData(exampleDistance, exampleDistance);
+        timeRegressor.addData(exampleTime, exampleTime);
+    }
+}
+
+//Distance between two points calculation
+public double calculateEuclideanDistance(Point p1, Point p2) {
+    return Math.sqrt(Math.pow(p1.getX() - p2.getX(), 2) + Math.pow(p1.getY() - p2.getY(), 2));
+}
+
+// Defines the point class if its not available
+class Point {
+    private double x;
+    private double y;
+
+    public Point(double x, double y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    public double getX() {
+        return x;
+    }
+
+    public double getY() {
+        return y;
+    }
+}
